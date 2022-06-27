@@ -9,5 +9,5 @@ This project is a work in progress.
 5) Execute the bot
 
 ## Systemd
-It is also possible to run the the zabbix telegram bot as a systemd service.
+It is also possible to run the zabbix telegram bot as a systemd service.
 An example service file can be found in the `systemd` directory
