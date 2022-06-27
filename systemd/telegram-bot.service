@@ -1,0 +1,13 @@
+[Unit]
+Description=Zabbix Telegram Bot
+After=multi-user.target
+
+[Service]
+User=zabbix
+Group=zabbix
+Type=simple
+Restart=always
+ExecStart=/usr/bin/python3 /usr/lib/zabbix/alertscripts/telegram_bot.py
+
+[Install]
+WantedBy=multi-user.target
