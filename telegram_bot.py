@@ -20,6 +20,7 @@ when specified.
 import sys, configparser, telebot
 import getopt
 import logging
+import os.path
 
 
 logging.basicConfig(format='%(message)s')
@@ -27,7 +28,7 @@ log = logging.getLogger(__name__)
 
 
 def usage():
-    print (__doc__ % {'script_name': sys.argv[0].split('/')[-1]}, file=sys.stderr)
+    print (__doc__ % {'script_name': os.path.basename(sys.argv[0])}, file=sys.stderr)
 
 
 def parse_commandline(argv = sys.argv[1:]):
