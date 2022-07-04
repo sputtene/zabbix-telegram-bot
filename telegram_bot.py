@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Usage: %(script_name)s { -h | --help }
        %(script_name)s [ { -c | --config-file } FILE ]
@@ -23,10 +24,6 @@ import logging
 import os.path
 
 
-logging.basicConfig(format='%(message)s')
-log = logging.getLogger(__name__)
-
-
 def usage():
     print (__doc__ % {'script_name': os.path.basename(sys.argv[0])}, file=sys.stderr)
 
@@ -39,6 +36,7 @@ def parse_commandline(argv = sys.argv[1:]):
                 [ 'config-file=', 'help', 'telegram-id=' ]
         )
     except getopt.GetoptError as err:
+        log = logging.getLogger(__name__)
         log.error('Error parsing command line options: %s', err)
         usage()
         sys.exit(1)
@@ -48,38 +46,47 @@ def parse_commandline(argv = sys.argv[1:]):
         pass
 
 
-parse_commandline()
 
-config = configparser.ConfigParser()
+def main():
+    logging.basicConfig(format='%(message)s')
 
-# Open settings.ini file to retrieve API token
-try:
-	with open('settings.ini') as f:
-		config.read_file(f)
-except:
-	e = sys.exc_info()[1]
-	print(e)
-	sys.exit(1)
+    parse_commandline()
 
-token = config.get('TelegramSettings','API-Token')
+    config = configparser.ConfigParser()
 
-# initialise Bot 
-try:
-	bot = telebot.TeleBot(token) 
-	bot_info = bot.get_me()
-except:
-	e = sys.exc_info()[1]
-	print(e)
-	sys.exit(1)
+    # Open settings.ini file to retrieve API token
+    try:
+            with open('settings.ini') as f:
+                    config.read_file(f)
+    except:
+            e = sys.exc_info()[1]
+            print(e)
+            sys.exit(1)
 
-# Bot handlers below
-@bot.message_handler(commands=['start', 'help'])
-def send_welcome(message):
-	bot.reply_to(message, "Howdy, how are you doing?")
+    token = config.get('TelegramSettings','API-Token')
 
-@bot.message_handler(func=lambda message: True)
-def echo_all(message):
-	bot.reply_to(message, message.text)
+    # initialise Bot
+    try:
+            bot = telebot.TeleBot(token)
+            bot_info = bot.get_me()
+    except:
+            e = sys.exc_info()[1]
+            print(e)
+            sys.exit(1)
 
-# Start the bot
-bot.infinity_polling()
+    # Bot handlers below
+    @bot.message_handler(commands=['start', 'help'])
+    def send_welcome(message):
+            bot.reply_to(message, "Howdy, how are you doing?")
+
+    @bot.message_handler(func=lambda message: True)
+    def echo_all(message):
+            bot.reply_to(message, message.text)
+
+    # Start the bot
+    bot.infinity_polling()
+
+
+if __name__ == '__main__':
+    main()
+
