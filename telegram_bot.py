@@ -1,3 +1,22 @@
+"""
+Usage: %(script_name)s { -h | --help }
+       %(script_name)s [ { -c | --config-file } FILE ]
+            [ { -i | --telegram-id } UUID }
+
+Start the Telegram/Zabbix bot.
+
+Arguments:
+    -h, --help      This message
+    -c FILE, --config-file FILE     The location of the config file.
+    -i UUID, --telegram-id UUID     The UUID of your Telegram bot as returned
+                    by @BotFather. It is discouraged to specify this on the
+                    command line (although it is useful for testing); use
+                    the config file instead.
+
+Command line arguments override their equivalent settings in the config file
+when specified.
+"""
+
 import sys, configparser, telebot
 import getopt
 import logging
@@ -8,20 +27,24 @@ log = logging.getLogger(__name__)
 
 
 def usage():
-    pass
+    print (__doc__ % {'script_name': sys.argv[0].split('/')[-1]}, file=sys.stderr)
+
 
 def parse_commandline(argv = sys.argv[1:]):
     try:
         optlist, args = getopt.getopt(
                 argv,
-                'c:h',
-                [ 'config-file=', 'help' ]
+                'c:hi:',
+                [ 'config-file=', 'help', 'telegram-id=' ]
         )
     except getopt.GetoptError as err:
         log.error('Error parsing command line options: %s', err)
         usage()
         sys.exit(1)
 
+    for opt, arg in optlist:
+        # TODO Parse command line options
+        pass
 
 
 parse_commandline()
