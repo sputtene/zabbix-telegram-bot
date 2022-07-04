@@ -1,4 +1,30 @@
 import sys, configparser, telebot
+import getopt
+import logging
+
+
+logging.basicConfig(format='%(message)s')
+log = logging.getLogger(__name__)
+
+
+def usage():
+    pass
+
+def parse_commandline(argv = sys.argv[1:]):
+    try:
+        optlist, args = getopt.getopt(
+                argv,
+                'c:h',
+                [ 'config-file=', 'help' ]
+        )
+    except getopt.GetoptError as err:
+        log.error('Error parsing command line options: %s', err)
+        usage()
+        sys.exit(1)
+
+
+
+parse_commandline()
 
 config = configparser.ConfigParser()
 
