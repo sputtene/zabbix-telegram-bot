@@ -96,21 +96,21 @@ def main():
     # does not.
     config = {}
     for cmdline_option, configfile_option, name in [
-        ( 'telegram-id', ('TelegramSettings', 'API-Token'), 'telegram-API-token' ),
+        ( 'telegram-id', ('Telegram Settings', 'API-Token'), 'telegram-API-token' ),
     ]:
         print("Parsing config option %(name)s" % {'name': name})
-        config[name] = cmdline_config[cmdline_option] if cmdline_config[cmdline_option] else configfile_parser.get(configfile_option[0], configfile_option[1], fallback=None)
+        config[name] = cmdline_config[cmdline_option] if cmdline_config.get(cmdline_option) else configfile_parser.get(configfile_option[0], configfile_option[1], fallback=None)
 
-    token = config['telegram-API-token']
+    telegram_token = config['telegram-API-token']
 
-    if token == '':
+    if telegram_token == '':
         log = logging.getLogger(__name__)
         log.error('No Telegram API token specified. Configure it in the config file or specify it on the command line')
         sys.exit(1)
 
     # initialise Bot
     try:
-            bot = telebot.TeleBot(token)
+            bot = telebot.TeleBot(telegram_token)
             bot_info = bot.get_me()
             logging.info('Bot info from Telegram: %s', bot_info)
     except:
