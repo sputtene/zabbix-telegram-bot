@@ -104,7 +104,7 @@ def main():
         ( None, ('Zabbix Settings', 'Username'), 'zabbix-username' ),
         ( None, ('Zabbix Settings', 'Password'), 'zabbix-password' ),
     ]:
-        print("Parsing config option %(name)s" % {'name': name})
+        logging.debug("Parsing config option %(name)s" % {'name': name})
         config[name] = cmdline_config[cmdline_option] if cmdline_config.get(cmdline_option) else configfile_parser.get(configfile_option[0], configfile_option[1], fallback=None)
 
     telegram_token = config['telegram-API-token']
