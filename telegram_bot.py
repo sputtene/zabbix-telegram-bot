@@ -131,6 +131,7 @@ def main():
 
     # initialise Bot
     try:
+            telebot.apihelper.ENABLE_MIDDLEWARE = True
             bot = telebot.TeleBot(telegram_token, parse_mode='HTML')
             bot_info = bot.get_me()
             logging.info('Bot info from Telegram: %s', bot_info)
@@ -138,6 +139,22 @@ def main():
             e = sys.exc_info()[1]
             print(e)
             sys.exit(1)
+
+    # Use a middleware handler to debug-print all received messages
+    @bot.middleware_handler()
+    def debug_all_messages(bot_instance, message):
+        logging.debug('Received message: %s', message)
+
+    # Use a middleware handler to prepend a / before messages that don't start
+    # with one.
+    # The effect is that commands can be given with or without a leading slash,
+    # like 'version' and '/version'.
+    @bot.middleware_handler(update_types = ['message'])
+    def add_leading_slash(bot_instance, message):
+        if not message.text.startswith('/'):
+            logging.debug('Adding leading / to message [%s]', message.text)
+            message.text = '/' + message.text
+
 
     # Bot handlers below
     @bot.message_handler(commands=['start', 'help'])
