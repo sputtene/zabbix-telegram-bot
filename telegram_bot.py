@@ -2,7 +2,8 @@
 """
 Usage: %(script_name)s { -h | --help }
        %(script_name)s [ { -c | --config-file } FILE ]
-            [ { -t | --telegram-id } UUID }
+            [ { -t | --telegram-id } UUID ] [ { -v | --verbose } ]
+            [ { -d | --debug } ]
 
 Start the Telegram/Zabbix bot.
 
@@ -13,6 +14,9 @@ Arguments:
                     by @BotFather. It is discouraged to specify this on the
                     command line (although it is useful for testing); use
                     the config file instead.
+    -v, --verbose                   Extra verbose output.
+    -d, --debug                     Enable debugging output. This implicitly
+                    enables --verbose as well.
 
 Command line arguments override their equivalent settings in the config file
 when specified.
@@ -29,13 +33,18 @@ def usage():
 
 
 def parse_commandline(argv = sys.argv[1:]):
-    cmdline_config = {}
+    cmdline_config = {
+            'config-file': 'settings.ini',
+            'telegram-id': None,
+            'verbose': False,
+            'debug': False,
+    }
 
     try:
         optlist, args = getopt.getopt(
                 argv,
-                'c:ht:',
-                [ 'config-file=', 'help', 'telegram-id=' ]
+                'c:ht:vd',
+                [ 'config-file=', 'help', 'telegram-id=', 'verbose', 'debug' ]
         )
     except getopt.GetoptError as err:
         log = logging.getLogger(__name__)
@@ -51,8 +60,17 @@ def parse_commandline(argv = sys.argv[1:]):
             cmdline_config['config-file'] = arg
         elif opt in ('-t', '--telegram-id'):
             cmdline_config['telegram-id'] = arg
+        elif opt in ('-v', '--verbose'):
+            cmdline_config['verbose'] = True
+        elif opt in ('-d', '--debug'):
+            cmdline_config['debug'] = True
         else:
             assert False, 'Unhandled command line option [%(opt)s]' % {'opt': opt};
+
+    if cmdline_config['debug']:
+        logging.getLogger().setLevel(level = logging.DEBUG)
+    elif cmdline_config['verbose']:
+        logging.getLogger().setLevel(level = logging.INFO)
 
     return cmdline_config
 
@@ -61,11 +79,12 @@ def main():
     logging.basicConfig(format='%(message)s')
 
     cmdline_config = parse_commandline()
+    logging.debug("Config: %s", cmdline_config)
 
     configfile_parser = configparser.ConfigParser()
     # Open settings.ini file to retrieve API token
     try:
-            with open(cmdline_config['config-file'] if 'config-file' in cmdline_config else 'settings.ini') as f:
+            with open(cmdline_config['config-file']) as f:
                     configfile_parser.read_file(f)
     except:
             e = sys.exc_info()[1]
@@ -80,7 +99,7 @@ def main():
         ( 'telegram-id', ('TelegramSettings', 'API-Token'), 'telegram-API-token' ),
     ]:
         print("Parsing config option %(name)s" % {'name': name})
-        config[name] = cmdline_config[cmdline_option] if cmdline_option in cmdline_config else configfile_parser.get(configfile_option[0], configfile_option[1], fallback=None)
+        config[name] = cmdline_config[cmdline_option] if cmdline_config[cmdline_option] else configfile_parser.get(configfile_option[0], configfile_option[1], fallback=None)
 
     token = config['telegram-API-token']
 
