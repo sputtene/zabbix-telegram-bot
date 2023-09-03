@@ -22,6 +22,9 @@ Command line arguments override their equivalent settings in the config file
 when specified.
 """
 
+__version__ = '0.1a1'
+
+
 import sys, configparser, telebot
 import getopt
 import logging
@@ -128,7 +131,7 @@ def main():
 
     # initialise Bot
     try:
-            bot = telebot.TeleBot(telegram_token)
+            bot = telebot.TeleBot(telegram_token, parse_mode='HTML')
             bot_info = bot.get_me()
             logging.info('Bot info from Telegram: %s', bot_info)
     except:
@@ -140,6 +143,10 @@ def main():
     @bot.message_handler(commands=['start', 'help'])
     def send_welcome(message):
             bot.reply_to(message, "Howdy, how are you doing?")
+
+    @bot.message_handler(commands=['version'])
+    def cmd_version(message):
+        bot.reply_to(message, 'Bot version: <b>{}</b>\nZabbix version: <b>{}</b>'.format(__version__, zapi.api_version()))
 
     @bot.message_handler(func=lambda message: True)
     def echo_all(message):
