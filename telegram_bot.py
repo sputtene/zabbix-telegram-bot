@@ -112,6 +112,7 @@ def main():
     try:
             bot = telebot.TeleBot(token)
             bot_info = bot.get_me()
+            logging.info('Bot info from Telegram: %s', bot_info)
     except:
             e = sys.exc_info()[1]
             print(e)
