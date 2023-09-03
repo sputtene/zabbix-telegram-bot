@@ -1,2 +1,14 @@
 [Telegram Settings]
 API-Token:
+
+[Zabbix Settings]
+Server: https://zabbix.example.com
+
+# For Zabbix version >= 5.4, you can use an API token instead of
+# username/password.
+# This is the preferred way to log in to the Zabbix API.
+Token: 123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0
+
+# ... but username/password is also supported
+Username: api-telegram
+Password: s0up3rs3kr!t

@@ -27,6 +27,8 @@ import getopt
 import logging
 import os.path
 
+from pyzabbix import ZabbixAPI
+
 
 def usage():
     print (__doc__ % {'script_name': os.path.basename(sys.argv[0])}, file=sys.stderr)
@@ -97,6 +99,10 @@ def main():
     config = {}
     for cmdline_option, configfile_option, name in [
         ( 'telegram-id', ('Telegram Settings', 'API-Token'), 'telegram-API-token' ),
+        ( None, ('Zabbix Settings', 'Server'), 'zabbix-server' ),
+        ( None, ('Zabbix Settings', 'Token'), 'zabbix-token' ),
+        ( None, ('Zabbix Settings', 'Username'), 'zabbix-username' ),
+        ( None, ('Zabbix Settings', 'Password'), 'zabbix-password' ),
     ]:
         print("Parsing config option %(name)s" % {'name': name})
         config[name] = cmdline_config[cmdline_option] if cmdline_config.get(cmdline_option) else configfile_parser.get(configfile_option[0], configfile_option[1], fallback=None)
@@ -107,6 +113,18 @@ def main():
         log = logging.getLogger(__name__)
         log.error('No Telegram API token specified. Configure it in the config file or specify it on the command line')
         sys.exit(1)
+
+    # Initialize Zabbix API connector
+    zapi = ZabbixAPI(config['zabbix-server'])
+
+    if config.get('zabbix-token'):
+        logging.debug('Using API token to log in to the Zabbix API')
+        zapi.login(api_token = config.get('zabbix-token'))
+    else:
+        logging.debug('Using username/password to log in to the Zabbix API')
+        zapi.login(config['zabbix-username'], config['zabbix-password'])
+
+    logging.info('Connected to Zabbix API version %s, host: %s', zapi.api_version(), config['zabbix-server'])
 
     # initialise Bot
     try:
