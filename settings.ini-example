@@ -12,3 +12,10 @@ Token: 123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0
 # ... but username/password is also supported
 Username: api-telegram
 Password: s0up3rs3kr!t
+
+# Media type number in Zabbix of the Telegram media.
+# This is used to look up the users in Zabbix with Telegram media defined.
+# The Telegram user_id of incoming messages is matched against the list of
+# "sendto" values in Zabbix for this media type, so the bot can map Telegram
+# users to their corresponding Zabbix users.
+TelegramMediaType: 16
