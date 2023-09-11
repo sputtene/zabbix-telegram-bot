@@ -32,6 +32,9 @@ import os.path
 
 from pyzabbix import ZabbixAPI
 
+import telegram.commands
+import zabbix_frontend
+
 
 def usage():
     print (__doc__ % {'script_name': os.path.basename(sys.argv[0])}, file=sys.stderr)
@@ -130,6 +133,9 @@ def main():
 
     logging.info('Connected to Zabbix API version %s, host: %s', zapi.api_version(), config['zabbix-server'])
 
+    zabbix_frontend.init(config['zabbix-server'], config['zabbix-username'], config['zabbix-password'])
+
+
     # Get Zabbix users who have Telegram media configured, with their "sendto"
     # values.
     # The "sendto" values are assumed to be Telegram user ID's, which are used
@@ -151,6 +157,7 @@ def main():
             output = ['userid', 'username', 'name', 'surname'],
             mediatypeids = config['zabbix-telegram-mediatype'],
             selectMedias = ['mediatypeid', 'sendto'],
+            selectRole = ['type'],
     )
     logging.debug('Got this list of users: %s', zabbix_users_with_telegram)
 
@@ -161,6 +168,7 @@ def main():
             'zabbix_username': zabbix_user['username'],
             'first_name': zabbix_user['name'],
             'surname': zabbix_user['surname'],
+            'is_superadmin': zabbix_user['role']['type'] == '3'
         }
 
         # Filter all medias for user, so we only keep the entry with the Telegram
@@ -172,65 +180,13 @@ def main():
     logging.debug('Telegram users I know about now: %s', telegram_users)
 
 
+    bot_handler = telegram.commands.CommandHandler(telegram_token, zapi, telegram_users)
 
-
-
-    # initialise Bot
-    try:
-            telebot.apihelper.ENABLE_MIDDLEWARE = True
-            bot = telebot.TeleBot(telegram_token, parse_mode='HTML')
-            bot_info = bot.get_me()
-            logging.info('Bot info from Telegram: %s', bot_info)
-    except:
-            e = sys.exc_info()[1]
-            print(e)
-            sys.exit(1)
-
-    # Use a middleware handler to debug-print all received messages
-    @bot.middleware_handler()
-    def debug_all_messages(bot_instance, message):
-        logging.debug('Received message: %s', message)
-
-    # Use a middleware handler to prepend a / before messages that don't start
-    # with one.
-    # The effect is that commands can be given with or without a leading slash,
-    # like 'version' and '/version'.
-    @bot.middleware_handler(update_types = ['message'])
-    def add_leading_slash(bot_instance, message):
-        if not message.text.startswith('/'):
-            logging.debug('Adding leading / to message [%s]', message.text)
-            message.text = '/' + message.text
-
-
-    # Bot message handlers
-
-    # If the Telegram userid of the incoming message is not listed
-    # in Zabbix, don't process any commands from that user.
-    @bot.message_handler(func=lambda msg: str(msg.from_user.id) not in telegram_users)
-    def reject_unknown_senders(message):
-        bot.reply_to(message, "I don't know you. Go away.")
-
-
-    # TODO We'll write a big message handler later, this is just
-    # for testing.
-    @bot.message_handler(commands=['start', 'help'])
-    def send_welcome(message):
-        zabbix_user = telegram_users[str(message.from_user.id)]
-        bot.reply_to(message,
-            "Howdy <b>{} {}</b> (Zabbix username <b>{}</b>), how are you doing?".format(
-                zabbix_user['first_name'], zabbix_user['surname'], zabbix_user['zabbix_username']))
-
-    @bot.message_handler(commands=['version'])
-    def cmd_version(message):
-        bot.reply_to(message, 'Bot version: <b>{}</b>\nZabbix version: <b>{}</b>'.format(__version__, zapi.api_version()))
-
-    # Catch-all message handler: just echo the message back to the user
-    @bot.message_handler(func=lambda message: True)
-    def echo_all(message):
-            bot.reply_to(message, message.text)
 
     # Start the bot
-    bot.infinity_polling()
+    #bot.infinity_polling()
+    bot_handler.start_polling()
+
 
 
 if __name__ == '__main__':
