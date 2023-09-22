@@ -3,6 +3,75 @@ import telebot, telebot.types
 
 import zabbix_frontend
 
+
+#######################################################################
+# Helper functions
+#######################################################################
+def calculate_graph_from_to_ts(from_ts, to_ts):
+    # Assumption: from_ts < to_ts
+    #
+    # Interval = to_ts - from_ts
+    #
+    # Earlier:  keep rightmost 1/3rd visible:
+    #           move 2/3 * interval to the left
+    # Later:    keep leftmost 1/3rd visible
+    #           move 2/3 * interval to the right
+    # Zoom in:  keep graph centered, just show middle 1/3rd
+    #           from_ts + 1/3 * interval; to_ts - 1/3 * interval
+    # Zoom out: keep graph centered, show 3 times as much timeline
+    #           from_ts - interval; to_ts + interval
+    #
+    # If the final to_ts is 'now+<offset>', set it to 'now' and subtract
+    # <offset> from from_ts.
+    # Note that this can't happen for "zoom in": the to_ts after zoom will
+    # always be smaller than the original to_ts.
+    interval = zabbix_frontend.interval_between(from_ts, to_ts)
+    onethird_interval = int(interval / 3)
+    twothird_interval = int(interval * 2 / 3)
+
+    # "Earlier" calculation
+    earlier_from = zabbix_frontend.add_interval_to_ts(from_ts, -twothird_interval)
+    earlier_to = zabbix_frontend.add_interval_to_ts(to_ts, -twothird_interval)
+
+    earlier_to_now_offset = zabbix_frontend.interval_between('now', earlier_to)
+    if earlier_to_now_offset > 0:   # Shift to the left by the number of seconds we're too far
+        earlier_from = zabbix_frontend.add_interval_to_ts(earlier_from, -earlier_to_now_offset)
+        earlier_to = 'now'
+
+    # "Later" calculation
+    later_from = zabbix_frontend.add_interval_to_ts(from_ts, twothird_interval)
+    later_to = zabbix_frontend.add_interval_to_ts(to_ts, twothird_interval)
+
+    later_to_now_offset = zabbix_frontend.interval_between('now', later_to)
+    if later_to_now_offset > 0:
+        later_from = zabbix_frontend.add_interval_to_ts(later_from, -later_to_now_offset)
+        later_to = 'now'
+
+    # Zoom in
+    zoomin_from = zabbix_frontend.add_interval_to_ts(from_ts, onethird_interval)
+    zoomin_to = zabbix_frontend.add_interval_to_ts(to_ts, -onethird_interval)
+
+    # Zoom out
+    zoomout_from = zabbix_frontend.add_interval_to_ts(from_ts, -interval)
+    zoomout_to = zabbix_frontend.add_interval_to_ts(to_ts, interval)
+
+    zoomout_to_now_offset = zabbix_frontend.interval_between('now', zoomout_to)
+    if zoomout_to_now_offset > 0:
+        zoomout_from = zabbix_frontend.add_interval_to_ts(zoomout_from, -zoomout_to_now_offset)
+        zoomout_to = 'now'
+
+    return {
+        'earlier_from': earlier_from,
+        'earlier_to': earlier_to,
+        'later_from': later_from,
+        'later_to': later_to,
+        'zoomin_from': zoomin_from,
+        'zoomin_to': zoomin_to,
+        'zoomout_from': zoomout_from,
+        'zoomout_to': zoomout_to,
+    }
+
+
 class CommandHandler:
     def __init__(self, telegram_token, zapi, telegram_users):
         self.zapi = zapi
@@ -36,10 +105,13 @@ class CommandHandler:
 
         ### Message text normalization
         @self.bot.middleware_handler(update_types = ['message'])
-        def remove_leading_slash(bot_instance, message):
+        def normalize_command(bot_instance, message):
+            message.text = message.text.lower()
             if not message.text.startswith('/'):
                 logging.debug('Adding leading / to message [%s]', message.text)
                 message.text = '/' + message.text
+
+            logging.debug("+++ Final command: [%s]", message.text)
 
 
 
@@ -249,25 +321,82 @@ class CommandHandler:
         def callback_graph_show_graph_with_graphid(cb):
             logging.debug("Callback: %s", cb)
 
-            graph_id = cb.data.split(' ')[2]
+            data = cb.data.split(' ')
+            graph_id = data[2]
 
-            self.bot.send_chat_action(cb.message.chat.id, 'typing')
+            from_ts = 'now-4h'
+            to_ts = 'now'
 
-            graph = zabbix_frontend.get_graph(graph_id, 3600, 1200, 400)
 
-            self.bot.send_photo(cb.message.chat.id, graph)
-            self.bot.edit_message_text(chat_id=cb.message.chat.id, message_id=cb.message.message_id, text='Your graph is displayed', reply_markup=None)
-            #self.bot.edit_message_media(chat_id=cb.message.chat.id, message_id=cb.message.message_id,media=graph,reply_markup=None)
+            self.bot.send_chat_action(cb.message.chat.id, 'upload_photo')
+            graph = zabbix_frontend.get_graph(graph_id, from_ts, to_ts, 1200, 400)
+
+            update_ts = calculate_graph_from_to_ts(from_ts, to_ts)
+
+            keyboard = telebot.types.InlineKeyboardMarkup()
+            keyboard.row_width = 5
+            keyboard.add(
+                    telebot.types.InlineKeyboardButton("\u23ea", callback_data="graph redraw %s %s %s" % (graph_id, update_ts['earlier_from'], update_ts['earlier_to'])),
+                    telebot.types.InlineKeyboardButton("\U0001f50d\u2796", callback_data="graph redraw %s %s %s" % (graph_id, update_ts['zoomout_from'], update_ts['zoomout_to'])),
+                    telebot.types.InlineKeyboardButton("\U0001f504", callback_data="graph redraw %s %s %s" % (graph_id, from_ts, to_ts)),
+                    telebot.types.InlineKeyboardButton("\U0001f50d\u2795", callback_data="graph redraw %s %s %s" % (graph_id, update_ts['zoomin_from'], update_ts['zoomin_to'])),
+                    telebot.types.InlineKeyboardButton("\u23e9", callback_data="graph redraw %s %s %s" % (graph_id, update_ts['later_from'], update_ts['later_to'])),
+            )
+
+            # It is not possible to change the media type of an already sent
+            # message (text to photo), so we'll have to delete the original
+            # message and create a media message.
+            self.bot.send_photo(cb.message.chat.id,
+                    reply_to_message_id=cb.message.reply_to_message.message_id,
+                    photo=graph,
+                    caption="Graph from <b>%s</b> to <b>%s</b>" % (
+                        zabbix_frontend.epoch_to_absolute_time(zabbix_frontend.zabbix_time_to_epoch(from_ts)),
+                        zabbix_frontend.epoch_to_absolute_time(zabbix_frontend.zabbix_time_to_epoch(to_ts))),
+                    reply_markup=keyboard
+            )
+            self.bot.delete_message(chat_id=cb.message.chat.id, message_id=cb.message.message_id)
+
+            #self.bot.send_photo(cb.message.chat.id, graph)
+            #self.bot.edit_message_text(chat_id=cb.message.chat.id, message_id=cb.message.message_id, text='Your graph is displayed', reply_markup=None)
+            #self.bot.edit_message_media(chat_id=cb.message.chat.id, message_id=cb.message.message_id,media=telebot.types.InputMediaPhoto(graph),reply_markup=None)
 
             self.bot.answer_callback_query(cb.id, "Your graph should be there")
 
 
+        @self.bot.callback_query_handler(func=lambda cb: cb.data.startswith('graph redraw '))
+        def callback_redraw_graph_with_graphid(cb):
+            logging.debug("Callback: %s", cb)
 
+            data = cb.data.split(' ')
+            graph_id = data[2]
+            from_ts = data[3]
+            to_ts = data[4]
 
+            self.bot.send_chat_action(cb.message.chat.id, 'upload_photo')
+            graph = zabbix_frontend.get_graph(graph_id, from_ts, to_ts, 1200, 400)
 
+            update_ts = calculate_graph_from_to_ts(from_ts, to_ts)
 
-            #zapi.url.removesuffix('api_jsonrpc.php')
+            keyboard = telebot.types.InlineKeyboardMarkup()
+            keyboard.row_width = 5
+            keyboard.add(
+                    telebot.types.InlineKeyboardButton("\u23ea", callback_data="graph redraw %s %s %s" % (graph_id, update_ts['earlier_from'], update_ts['earlier_to'])),
+                    telebot.types.InlineKeyboardButton("\U0001f50d\u2796", callback_data="graph redraw %s %s %s" % (graph_id, update_ts['zoomout_from'], update_ts['zoomout_to'])),
+                    telebot.types.InlineKeyboardButton("\U0001f504", callback_data="graph redraw %s %s %s" % (graph_id, from_ts, to_ts)),
+                    telebot.types.InlineKeyboardButton("\U0001f50d\u2795", callback_data="graph redraw %s %s %s" % (graph_id, update_ts['zoomin_from'], update_ts['zoomin_to'])),
+                    telebot.types.InlineKeyboardButton("\u23e9", callback_data="graph redraw %s %s %s" % (graph_id, update_ts['later_from'], update_ts['later_to'])),
+            )
 
+            self.bot.edit_message_media(chat_id=cb.message.chat.id,
+                    message_id=cb.message.message_id,
+                    media=telebot.types.InputMediaPhoto(graph,
+                        caption="Graph from <b>%s</b> to <b>%s</b>" % (
+                            zabbix_frontend.epoch_to_absolute_time(zabbix_frontend.zabbix_time_to_epoch(from_ts)),
+                            zabbix_frontend.epoch_to_absolute_time(zabbix_frontend.zabbix_time_to_epoch(to_ts))),
+                        parse_mode='HTML'),
+                    reply_markup=keyboard
+            )
+            self.bot.answer_callback_query(cb.id, "Done")
 
 
         ### Sst, easter egg :)
@@ -284,9 +413,8 @@ class CommandHandler:
 
 
 
-    #######################################################################
-    # Helper functions
-    #######################################################################
+
+
     def get_hostgroups_hosts_for_user(self, zabbix_user):
         hostgroups = []
 
